@@ -9,7 +9,7 @@ import (
 
 type TransactionBet struct {
 	ID          string          `gorm:"primary_key;"`
-	OrderId     uint64          `gorm:"default:nextval('transaction_bet_order_id_seq'::regclass);"`
+	OrderId     uint64          `gorm:"type:bigserial;AUTO_INCREMENT"`
 	CreatedAt   time.Time       `gorm:"index"`
 	CancelledAt *time.Time      `gorm:"index"`
 	Amount      decimal.Decimal `gorm:"type:decimal(20,8);"`
