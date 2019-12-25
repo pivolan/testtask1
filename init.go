@@ -9,20 +9,37 @@ import (
 	"time"
 )
 
-func (b *TestTask) Init(dbConnect string, port string) (err error) {
-	b.db, err = gorm.Open("postgres", dbConnect)
+func (b *TestTask) Init(dsn string, port string) (err error) {
+	err = b.ConnectDb(dsn)
 	if err != nil {
 		err = fmt.Errorf("cannot connect to database postgres, err: %s", err)
 		return
 	}
+	b.db.DropTable(&TransactionBet{})
+	log.Println("connect to db success")
+	b.MigrateDatabase()
+	log.Println("migrations done")
+	b.StartCronTasks()
+	log.Println("periodically tasks started")
+	b.StartWebListen(port)
+	return
+}
+func (b *TestTask) ConnectDb(dsn string) (err error) {
+	b.db, err = gorm.Open("postgres", dsn)
+	if err != nil {
+		err = fmt.Errorf("cannot connect to database postgres, err: %s", err)
+		return
+	}
+	return
+}
+func (b *TestTask) MigrateDatabase() {
 	b.db.AutoMigrate(&TransactionBet{})
 	b.db.AutoMigrate(&UserBalance{})
-	b.StartCronTasks()
+}
+func (b *TestTask) StartWebListen(port string) {
 	http.HandleFunc("/my_url", b.HandleTransactionAction)
 
 	log.Fatal(http.ListenAndServe("127.0.0.1:"+port, nil))
-
-	return
 }
 func (b *TestTask) StartCronTasks() {
 	go func() {

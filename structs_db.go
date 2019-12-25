@@ -8,17 +8,18 @@ import (
 )
 
 type TransactionBet struct {
-	ID          string          `gorm:"type:string;primary_key;"`
-	CreatedAt   time.Time       `sql:"index"`
-	CancelledAt time.Time       `sql:"index"`
-	Amount      decimal.Decimal `sql:"type:decimal(20,8);"`
+	ID          string          `gorm:"primary_key;"`
+	OrderId     uint64          `gorm:"default:nextval('transaction_bet_order_id_seq'::regclass);"`
+	CreatedAt   time.Time       `gorm:"index"`
+	CancelledAt *time.Time      `gorm:"index"`
+	Amount      decimal.Decimal `gorm:"type:decimal(20,8);"`
 	State       StateType
 	UserID      uuid.UUID
 	User        UserBalance
 }
 type UserBalance struct {
 	Base
-	Balance decimal.Decimal `sql:"type:decimal(20,8);"`
+	Balance decimal.Decimal `gorm:"type:decimal(20,8);"`
 }
 
 type Base struct {
@@ -34,4 +35,10 @@ func (u *Base) BeforeCreate(scope *gorm.Scope) error {
 		return err
 	}
 	return scope.SetColumn("ID", uuid4)
+}
+func (UserBalance) TableName() string {
+	return "user_balance"
+}
+func (TransactionBet) TableName() string {
+	return "transaction_bet"
 }

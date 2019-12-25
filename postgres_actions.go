@@ -23,7 +23,10 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 		err = fmt.Errorf("error on get balance, err: %s", err)
 		return
 	}
-	if amount.Add(balance).LessThan(decimal.Zero) {
+	if state == STATE_LOST {
+		amount = amount.Neg()
+	}
+	if balance.Add(amount).LessThan(decimal.Zero) {
 		err = fmt.Errorf("balance cannot be less than zero after transaction, transaction amount: %s, current balance: %s", amount, balance)
 		return
 	}
@@ -38,7 +41,7 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 		tx.Rollback()
 		return
 	}
-	if err = tx.Model(&UserBalance{}).Update("balance = ?", amount.Add(balance)).Where("user_id = ?", userId).Error; err != nil {
+	if err = tx.Model(&UserBalance{}).Where("user_id = ?", userId).Update("balance = ?", amount.Add(balance)).Error; err != nil {
 		err = fmt.Errorf("error on update user balance, transaction id: %s, err: %s", transactionId, err)
 		tx.Rollback()
 		return
@@ -90,10 +93,11 @@ func (b *TestTask) Cancel10LastOddUserTransactions(userId uuid.UUID) (err error)
 		tx.Rollback()
 		return
 	}
+	tx.Commit()
 	return
 }
 func GetUserBalance(userId uuid.UUID, tx *gorm.DB) (balance decimal.Decimal, err error) {
-	row := tx.Model(&TransactionBet{}).Select("sum(amount)").Where("user_id = ? AND cancelled_at IS NOT NULL", userId).Row()
+	row := tx.Model(&TransactionBet{}).Raw("SELECT COALESCE(SUM(amount),0) AS total FROM transaction_bet WHERE user_id=? AND cancelled_at IS NULL", userId).Row()
 	err = row.Scan(&balance)
 	if err != nil {
 		err = fmt.Errorf("error on raw query, err: %s", err)
@@ -103,7 +107,7 @@ func GetUserBalance(userId uuid.UUID, tx *gorm.DB) (balance decimal.Decimal, err
 }
 func GetLast10OddTransactionUser(userId uuid.UUID, tx *gorm.DB) (transactions []TransactionBet, err error) {
 	tempTransactions := []TransactionBet{}
-	if err = tx.Find(&tempTransactions, "user_id = ?", userId).Limit(20).Order("created_at", true).Error; err != nil {
+	if err = tx.Order("created_at DESC").Limit(20).Find(&tempTransactions, "user_id = ?", userId).Error; err != nil {
 		err = fmt.Errorf("error on find 20 last transaction for user: %s, err: %s", userId, err)
 		return
 	}
@@ -115,12 +119,11 @@ func GetLast10OddTransactionUser(userId uuid.UUID, tx *gorm.DB) (transactions []
 	return
 }
 func CancelTransactions(userId uuid.UUID, transactions []TransactionBet, tx *gorm.DB) (err error) {
-	for _, transaction := range transactions {
-		transaction.CancelledAt = time.Now()
-	}
-	if err = tx.Model(&TransactionBet{}).Updates(&transactions).Error; err != nil {
-		err = fmt.Errorf("error on cancel transactions for user: %s, err: %s", userId, err)
-		return
+	for i, transaction := range transactions {
+		if err = tx.Model(&TransactionBet{}).Where("id=?", transaction.ID).Update("cancelled_at", time.Now()).Error; err != nil {
+			err = fmt.Errorf("error on cancel transactions %d for user: %s, err: %s", i, userId, err)
+			return
+		}
 	}
 	return
 }
