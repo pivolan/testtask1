@@ -41,7 +41,7 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 		tx.Rollback()
 		return
 	}
-	if err = tx.Model(&UserBalance{}).Where("user_id = ?", userId).Update("balance = ?", amount.Add(balance)).Error; err != nil {
+	if err = tx.Model(&UserBalance{}).Where("id = ?", userId).Update("balance", amount.Add(balance)).Error; err != nil {
 		err = fmt.Errorf("error on update user balance, transaction id: %s, err: %s", transactionId, err)
 		tx.Rollback()
 		return
@@ -93,6 +93,7 @@ func (b *TestTask) Cancel10LastOddUserTransactions(userId uuid.UUID) (err error)
 		tx.Rollback()
 		return
 	}
+	tx.Model(&UserBalance{}).Where("id=?", userId).Update("balance", afterUserBalance)
 	tx.Commit()
 	return
 }

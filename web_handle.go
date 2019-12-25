@@ -2,14 +2,16 @@ package testtask1
 
 import (
 	"encoding/json"
+	"fmt"
 	uuid "github.com/satori/go.uuid"
+	"github.com/shopspring/decimal"
 	"io/ioutil"
 	"log"
 	"net/http"
 )
 
 func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "post" {
+	if r.Method != http.MethodPost {
 		w.WriteHeader(404)
 		_, _ = w.Write([]byte(`Not found`))
 		return
@@ -37,84 +39,30 @@ func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Reques
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Println("error on read body of request, err: ", err)
-		response.Error = err.Error()
-		responseBody, err := json.Marshal(&response)
-		if err != nil {
-			log.Println("cannot format response body, err: ", err)
-			w.WriteHeader(500)
-			_, err = w.Write([]byte(`Cannot format response body`))
-			if err != nil {
-				log.Println("cannot write response")
-			}
-			return
-		}
-		_, err = w.Write(responseBody)
-		if err != nil {
-			log.Println("cannot write response after marshal reponse")
-		}
-		return
+		responseJsonError(err, w)
 	}
 	err = json.Unmarshal(body, &transactionRequest)
 	if err != nil {
-		response.Error = err.Error()
-		responseBody, err := json.Marshal(&response)
-		if err != nil {
-			log.Println("cannot format response body, err: ", err)
-			w.WriteHeader(500)
-			_, err = w.Write([]byte(`Cannot format response body`))
-			if err != nil {
-				log.Println("cannot write response")
-			}
-			return
-		}
-		_, err = w.Write(responseBody)
-		if err != nil {
-			log.Println("cannot write response after marshal response")
-		}
+		responseJsonError(err, w)
 		return
 	}
-	//Add transaction
-	if transactionRequest.State == STATE_WIN {
-		err = b.AddTransaction(userId, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount)
-	} else if transactionRequest.State == STATE_LOST {
-		err = b.AddTransaction(userId, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount.Neg())
+	//success json unmarshal
+	if transactionRequest.Amount.LessThan(decimal.Zero) {
+		err = fmt.Errorf("field 'amount' cannot be less than 0, amount: %s", transactionRequest.Amount)
+		responseJsonError(err, w)
+		return
+
 	}
+	//Add transaction
+	err = b.AddTransaction(userId, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount)
 	if err != nil {
 		response.Error = err.Error()
-		responseBody, err := json.Marshal(&response)
-		if err != nil {
-			log.Println("cannot format response body, err: ", err)
-			w.WriteHeader(500)
-			_, err = w.Write([]byte(`Cannot format response body`))
-			if err != nil {
-				log.Println("cannot write response")
-			}
-			return
-		}
-		_, err = w.Write(responseBody)
-		if err != nil {
-			log.Println("cannot write response after marshal response")
-		}
+		responseJsonError(err, w)
 		return
 	}
 	balance, err := GetUserBalance(userId, b.db)
 	if err != nil {
-		response.Error = err.Error()
-		responseBody, err := json.Marshal(&response)
-		if err != nil {
-			log.Println("cannot format response body, err: ", err)
-			w.WriteHeader(500)
-			_, err = w.Write([]byte(`Cannot format response body`))
-			if err != nil {
-				log.Println("cannot write response")
-			}
-			return
-		}
-		_, err = w.Write(responseBody)
-		if err != nil {
-			log.Println("cannot write response after marshal response")
-		}
+		responseJsonError(err, w)
 		return
 	}
 	response.Error = ""
@@ -142,6 +90,26 @@ func getUserIdFromRequest(authenticationToken string) (userId uuid.UUID, err err
 	userId, err = uuid.FromString(authenticationToken)
 	if err != nil {
 		return
+	}
+	return
+}
+
+func responseJsonError(err error, w http.ResponseWriter) {
+	response := TransactionResponse{Status: STATUS_FAIL}
+	response.Error = err.Error()
+	responseBody, err := json.Marshal(&response)
+	if err != nil {
+		log.Println("cannot format response body, err: ", err)
+		w.WriteHeader(500)
+		_, err = w.Write([]byte(`Cannot format response body`))
+		if err != nil {
+			log.Println("cannot write response")
+		}
+		return
+	}
+	_, err = w.Write(responseBody)
+	if err != nil {
+		log.Println("cannot write response after marshal response")
 	}
 	return
 }
