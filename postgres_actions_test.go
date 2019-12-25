@@ -5,6 +5,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/shopspring/decimal"
 	"log"
+	"strings"
 	"testing"
 	"time"
 )
@@ -60,10 +61,10 @@ func TestCancelTransactions(t *testing.T) {
 		log.Fatalln(err)
 	}
 	v4, _ := uuid.NewV4()
-	b.AddTransaction(v4, "tid", STATE_WIN, decimal.NewFromInt(5))
+	_ = b.AddTransaction(v4, "tid", STATE_WIN, decimal.NewFromInt(5))
 	var transaction TransactionBet
 	b.db.Find(&transaction, "id=?", "tid")
-	CancelTransactions(v4, []TransactionBet{transaction}, b.db)
+	_ = CancelTransactions(v4, []TransactionBet{transaction}, b.db)
 	b.db.Find(&transaction, "id=?", "tid")
 	if transaction.CancelledAt == nil {
 		t.Errorf("not changed tranaction cancelled_at")
@@ -166,6 +167,17 @@ func TestGetLast10OddTransactionUser(t *testing.T) {
 		t.Errorf("sum balance not equal to %d, balance: %s", expectedSum, balance)
 	}
 
+	//check 10 last transaction with negative result
+	_ = b.AddTransaction(user.ID, random.String(20, random.Alphanumeric), STATE_WIN, decimal.NewFromFloat(200.202))
+	_ = b.AddTransaction(user.ID, random.String(20, random.Alphanumeric), STATE_LOST, decimal.NewFromFloat(200.202))
+	_ = b.AddTransaction(user.ID, random.String(20, random.Alphanumeric), STATE_WIN, decimal.NewFromFloat(200.202))
+	err = b.Cancel10LastOddUserTransactions(user.ID)
+	if err == nil {
+		t.Errorf("some error")
+	}
+	if !strings.Contains(err.Error(), "after cancel transaction balance are less than zero, rollback all") {
+		t.Errorf("error, after cancel 10 transactions account balance will be less than zero, transaction must be cancelled")
+	}
 	b.db.Delete(&TransactionBet{}, "user_id=?", user.ID)
 	b.db.Delete(&UserBalance{}, "id=?", user.ID)
 }
