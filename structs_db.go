@@ -30,11 +30,14 @@ type Base struct {
 }
 
 func (u *Base) BeforeCreate(scope *gorm.Scope) error {
-	uuid4, err := uuid.NewV4()
-	if err != nil {
-		return err
+	if uuid.Equal(u.ID, uuid.UUID{}) {
+		uuid4, err := uuid.NewV4()
+		if err != nil {
+			return err
+		}
+		return scope.SetColumn("ID", uuid4)
 	}
-	return scope.SetColumn("ID", uuid4)
+	return nil
 }
 func (UserBalance) TableName() string {
 	return "user_balance"

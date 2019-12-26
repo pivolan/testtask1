@@ -18,19 +18,19 @@ func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Reques
 	}
 	if r.Header.Get("Content-Type") != "application/json" {
 		w.WriteHeader(400)
-		w.Write([]byte(`invalid header content-type, must be "application/json"`))
+		_, _ = w.Write([]byte(`invalid header content-type, must be "application/json"`))
 		return
 	}
 	if !InArray(r.Header.Get("Source-Type"), []string{string(SOURCE_TYPE_GAME), string(SOURCE_TYPE_PAYMENT), string(SOURCE_TYPE_SERVER)}) {
 		w.WriteHeader(400)
-		w.Write([]byte(`invalid header source-type`))
+		_, _ = w.Write([]byte(`invalid header source-type`))
 		return
 	}
 	//UserId, skip all authentication steps, we suppose all is ok
-	userId, err := getUserIdFromRequest(r.Header.Get("auth"))
+	user, err := b.getUserIdFromRequest(r.Header.Get("auth"))
 	if err != nil {
 		w.WriteHeader(400)
-		w.Write([]byte(`invalid header auth, no user found with token`))
+		_, _ = w.Write([]byte(fmt.Sprintf(`invalid header auth, %s`, err.Error())))
 		return
 
 	}
@@ -54,13 +54,13 @@ func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Reques
 
 	}
 	//Add transaction
-	err = b.AddTransaction(userId, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount)
+	err = b.AddTransaction(user.ID, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount)
 	if err != nil {
 		response.Error = err.Error()
 		responseJsonError(err, w)
 		return
 	}
-	balance, err := GetUserBalance(userId, b.db)
+	balance, err := GetUserBalance(user.ID, b.db)
 	if err != nil {
 		responseJsonError(err, w)
 		return
@@ -84,12 +84,34 @@ func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Reques
 	}
 	return
 }
+func (b *TestTask) HandleUserClearAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte(`Not found`))
+		return
+	}
+	//UserId, skip all authentication steps, we suppose all is ok
+	user, err := b.getUserIdFromRequest(r.Header.Get("auth"))
+	if err != nil {
+		w.WriteHeader(400)
+		_, _ = w.Write([]byte(fmt.Sprintf(`invalid header auth, %s`, err.Error())))
+		return
+
+	}
+	b.db.Delete(&TransactionBet{}, "user_id=?", user.ID)
+	_, _ = w.Write([]byte("Success clear user data"))
+}
 
 //fake method
-func getUserIdFromRequest(authenticationToken string) (userId uuid.UUID, err error) {
-	userId, err = uuid.FromString(authenticationToken)
+func (b *TestTask) getUserIdFromRequest(authenticationToken string) (user UserBalance, err error) {
+	userId, err := uuid.FromString(authenticationToken)
 	if err != nil {
+		err = fmt.Errorf("token is not uuid, token: %s", authenticationToken)
 		return
+	}
+	err = b.db.Find(&user, "id=?", userId).Error
+	if err != nil {
+		err = fmt.Errorf("cannot find user with token: %s, err: %s", authenticationToken, err)
 	}
 	return
 }
