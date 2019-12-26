@@ -17,8 +17,6 @@ func (b *TestTask) Init(dsn string, port string) (err error) {
 		return
 	}
 	log.Println("connect to db success")
-	b.db.DropTableIfExists("user_balance")
-	b.db.DropTableIfExists("transaction_bet")
 	b.MigrateDatabase()
 	log.Println("migrations done")
 	b.Fixtures()
