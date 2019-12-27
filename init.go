@@ -32,6 +32,9 @@ func (b *TestTask) ConnectDb(dsn string) (err error) {
 		err = fmt.Errorf("cannot connect to database postgres, err: %s", err)
 		return
 	}
+	b.db.DB().SetConnMaxLifetime(10 * time.Second)
+	b.db.DB().SetMaxOpenConns(1000)
+	b.db.DB().SetMaxIdleConns(100)
 	return
 }
 func (b *TestTask) MigrateDatabase() {
@@ -51,12 +54,12 @@ func (b *TestTask) StartWebListen(port string) {
 	http.HandleFunc("/my_url", b.HandleTransactionAction)
 	http.HandleFunc("/clear_user", b.HandleUserClearAction)
 
-	log.Fatal(http.ListenAndServe("127.0.0.1:"+port, nil))
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 func (b *TestTask) StartCronTasks() {
 	go func() {
 		for {
-			<-time.After(1 * time.Minute)
+			time.Sleep(10 * time.Minute)
 			users := []UserBalance{}
 			b.db.Find(&users)
 			log.Printf("start task, found %d users to update transactions", len(users))

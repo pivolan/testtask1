@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -137,6 +138,43 @@ func TestTestTask_HandleTransactionAction(t *testing.T) {
 			t.Errorf("user_balance invalid, transaction: %s, response: %s", transactionRequest.Amount, response.Balance)
 		}
 	}
+	fmt.Println("test parallel lost")
+	wg := sync.WaitGroup{}
+	for i := 0; i < 500; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			transactionRequest := TransactionRequest{
+				State:         STATE_LOST,
+				Amount:        decimal.NewFromFloat(10.340009),
+				TransactionId: random.String(20, random.Alphanumeric),
+			}
+
+			request, _ := GenerateRequest("application/json", SOURCE_TYPE_GAME, userId, transactionRequest)
+			client := http.Client{}
+			resp, err = client.Do(request)
+			if err != nil {
+				t.Errorf("error generate request, err: %s", err)
+				return
+			}
+			body, err := ioutil.ReadAll(resp.Body)
+			response := TransactionResponse{}
+			err = json.Unmarshal(body, &response)
+			if err != nil {
+				t.Errorf("error on unmarshall, err: %s, resp: %s", err, string(body))
+				return
+			}
+			if response.Status != "success" {
+				t.Errorf("response must be success, resp: %s", string(body))
+				return
+			}
+			sum = sum.Add(transactionRequest.Amount)
+			if !response.Balance.Equal(sum) {
+				t.Errorf("user_balance invalid, transaction: %s, response: %s", transactionRequest.Amount, response.Balance)
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func GenerateRequest(contentType string, sourceType string, auth string, transactionRequest TransactionRequest) (request *http.Request, err error) {

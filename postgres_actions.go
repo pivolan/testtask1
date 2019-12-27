@@ -9,16 +9,7 @@ import (
 )
 
 func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state StateType, amount decimal.Decimal) (err error) {
-	tx := b.db.Model(&UserBalance{}).Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-	if err := tx.Error; err != nil {
-		return err
-	}
-	balance, err := GetUserBalance(userId, tx)
+	balance, err := GetUserBalance(userId, b.db)
 	if err != nil {
 		err = fmt.Errorf("error on get balance, err: %s", err)
 		return
@@ -30,6 +21,17 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 		err = fmt.Errorf("balance cannot be less than zero after transaction, transaction amount: %s, current balance: %s", amount, balance)
 		return
 	}
+	tx := b.db.Model(&TransactionBet{}).Begin()
+	b.db.Model(&TransactionBet{}).Lock()
+	defer b.db.Model(&TransactionBet{}).Lock()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err := tx.Error; err != nil {
+		return err
+	}
 	if err = tx.Create(&TransactionBet{
 		ID:        transactionId,
 		CreatedAt: time.Now(),
@@ -39,6 +41,17 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 	}).Error; err != nil {
 		err = fmt.Errorf("error on create transaction, err: %s", err)
 		tx.Rollback()
+		return
+	}
+	balance, err = GetUserBalance(userId, tx)
+	if err != nil {
+		err = fmt.Errorf("error on get balance, err: %s", err)
+		tx.Rollback()
+		return
+	}
+	if balance.LessThan(decimal.Zero) {
+		tx.Rollback()
+		err = fmt.Errorf("balance cannot be less than zero after transaction, transaction amount: %s, current balance: %s", amount, balance)
 		return
 	}
 	if err = tx.Model(&UserBalance{}).Where("id = ?", userId).Update("balance", amount.Add(balance)).Error; err != nil {
