@@ -7,11 +7,11 @@ import (
 )
 
 var port = flag.String("port", "8098", "port")
-var db = flag.String("db", "host=localhost port=5432 user=postgres dbname=testtask1 sslmode=disable", "postgres connect string")
+var dsn = flag.String("dsn", "host=localhost port=5432 user=postgres dbname=testtask1 sslmode=disable", "postgres connect string")
 
 func main() {
 	b := testtask1.TestTask{}
-	err := b.Init(*db, *port)
+	err := b.Init(*dsn, *port)
 	if err != nil {
 		log.Fatalln(err)
 		return
