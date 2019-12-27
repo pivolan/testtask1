@@ -12,7 +12,7 @@ type TransactionBet struct {
 	OrderId     uint64          `gorm:"type:bigserial;AUTO_INCREMENT"`
 	CreatedAt   time.Time       `gorm:"index"`
 	CancelledAt *time.Time      `gorm:"index"`
-	Amount      decimal.Decimal `gorm:"type:decimal(20,8);"`
+	Amount      decimal.Decimal `gorm:"type:decimal(20,8);index"`
 	State       StateType
 	UserID      uuid.UUID
 	User        UserBalance

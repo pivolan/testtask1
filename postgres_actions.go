@@ -63,7 +63,7 @@ func (b *TestTask) AddTransaction(userId uuid.UUID, transactionId string, state 
 	return
 }
 func (b *TestTask) Cancel10LastOddUserTransactions(userId uuid.UUID) (err error) {
-	tx := b.db.Model(&UserBalance{}).Begin()
+	tx := b.db.Model(&TransactionBet{}).Begin()
 	defer func() {
 		if r := recover(); r != nil {
 			tx.Rollback()
@@ -90,6 +90,8 @@ func (b *TestTask) Cancel10LastOddUserTransactions(userId uuid.UUID) (err error)
 		err = fmt.Errorf("error, after cancel 10 transactions user balance will less than zero, current user balance: %s, after user balance: %s", balance, balanceResult)
 		return
 	}
+	b.db.Model(&TransactionBet{}).Lock()
+	defer b.db.Model(&TransactionBet{}).Unlock()
 	err = CancelTransactions(userId, transactions, tx)
 	if err != nil {
 		tx.Rollback()
