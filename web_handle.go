@@ -53,6 +53,11 @@ func (b *TestTask) HandleTransactionAction(w http.ResponseWriter, r *http.Reques
 		return
 
 	}
+	if transactionRequest.State != STATE_LOST && transactionRequest.State != STATE_WIN {
+		err = fmt.Errorf("field 'state' can be `lost` or `win`, %s setted", transactionRequest.State)
+		responseJsonError(err, w)
+		return
+	}
 	//Add transaction
 	err = b.AddTransaction(user.ID, transactionRequest.TransactionId, transactionRequest.State, transactionRequest.Amount)
 	if err != nil {
