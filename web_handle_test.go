@@ -135,7 +135,7 @@ func TestTestTask_HandleTransactionAction(t *testing.T) {
 		}
 		sum = sum.Add(transactionRequest.Amount)
 		if !response.Balance.Equal(sum) {
-			t.Errorf("user_balance invalid, transaction: %s, response: %s", transactionRequest.Amount, response.Balance)
+			t.Errorf("user_balance invalid, sum: %s, response: %s", sum, response.Balance)
 		}
 	}
 	fmt.Println("test parallel lost")
@@ -164,13 +164,9 @@ func TestTestTask_HandleTransactionAction(t *testing.T) {
 				t.Errorf("error on unmarshall, err: %s, resp: %s", err, string(body))
 				return
 			}
-			if response.Status != "success" {
-				t.Errorf("response must be success, resp: %s", string(body))
-				return
-			}
 			sum = sum.Add(transactionRequest.Amount)
-			if !response.Balance.Equal(sum) {
-				t.Errorf("user_balance invalid, transaction: %s, response: %s", transactionRequest.Amount, response.Balance)
+			if response.Balance.LessThan(decimal.Zero) {
+				t.Errorf("user_balance less than zero, transaction: %s, response: %s", sum, response.Balance)
 			}
 		}()
 	}
